@@ -17,6 +17,7 @@ import {
 import { STEALTH_ARGS, STEALTH_UA, injectStealthScript } from '@/lib/browser/stealth';
 import { LOGIN_URL, MFA_CODE_INPUT_SELECTOR, dismissConsentBanner, fillLoginForm, fillInput, detectLoginState } from '@/lib/browser/login';
 import { readMergedConfig } from '@/lib/yaml/config';
+import { parseFirstContactForm } from './first-contact';
 import { SESSION_FILE as COOKIE_FILE } from '@/lib/ka/management-api';
 
 const GATEWAY_BASE = 'https://gateway.kleinanzeigen.de/messagebox/api';
@@ -821,4 +822,42 @@ export async function sendMessage(workspace: string, conversationId: string, tex
   // 204 No Content = success, no body to parse
   if (response.status === 204) return { success: true };
   return response.json();
+}
+
+/** Submit the same contact form shown on an ad page to start a buyer conversation. */
+export async function startConversation(workspace: string, adId: number, text: string, contactName?: string): Promise<unknown> {
+  const session = await getSession(workspace);
+  const name = contactName?.trim() ||
+    String((((readMergedConfig(workspace).ad_defaults as Record<string, unknown> | undefined)?.contact as Record<string, unknown> | undefined)?.name) ?? '').trim();
+  if (!name) throw new Error('Kontaktname fehlt; bitte contactName angeben oder im Profil hinterlegen.');
+
+  const adUrl = `https://www.kleinanzeigen.de/s-anzeige/${adId}`;
+  const headers = { Cookie: session.cookies, 'User-Agent': STEALTH_UA };
+  const page = await fetch(adUrl, { headers, redirect: 'manual' });
+  if (!page.ok) throw new Error(`Anzeigenseite nicht abrufbar (HTTP ${page.status}); kein Versand.`);
+  const { csrfToken, adType } = parseFirstContactForm(await page.text(), adId);
+
+  const response = await fetch('https://www.kleinanzeigen.de/s-anbieter-kontaktieren.json', {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      ...headers,
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'X-CSRF-TOKEN': csrfToken,
+      'X-Requested-With': 'XMLHttpRequest',
+      Origin: 'https://www.kleinanzeigen.de',
+      Referer: adUrl,
+    },
+    body: new URLSearchParams({ message: text, adId: String(adId), adType, contactName: name }),
+  });
+  if (!response.ok) throw new Error(`Erstnachricht nicht bestätigt (HTTP ${response.status}); vor erneutem Versuch Postfach prüfen.`);
+  if (response.status === 204) return { submitted: true, adId };
+  const raw = await response.text();
+  let result: unknown;
+  try { result = JSON.parse(raw); } catch { throw new Error('Antwort des Kontaktformulars nicht auswertbar; vor erneutem Versuch Postfach prüfen.'); }
+  if (result && typeof result === 'object' && ('error' in result || ('success' in result && result.success === false))) {
+    throw new Error('Kontaktformular meldet einen Fehler; vor erneutem Versuch Postfach prüfen.');
+  }
+  return { submitted: true, adId, websiteResponse: result };
 }
