@@ -2,6 +2,15 @@
 
 # kleinanzeigen-bot-ui
 
+> This fork has an experimental first-contact endpoint at `POST /api/messages/start`.
+> It uses the signed-in user's messaging cookies and the contact form on the
+> target ad page. It requires `adId`, `message`, and `confirmation: "SENDEN"`;
+> `contactName` is optional when the user's profile has a contact name.
+> The ad ID and CSRF token are checked before submission. Unit tests and a
+> production build pass, but no real first message has been sent or verified.
+> Do not deploy this feature for routine use until an authorized end-to-end
+> test confirms the website's response and conversation creation.
+
 **A self-hosted web interface for [kleinanzeigen-bot](https://github.com/Second-Hand-Friends/kleinanzeigen-bot)**
 
 Manage ads, run bot commands, generate listings with AI, and track everything from a single dashboard.
