@@ -852,12 +852,12 @@ export async function startConversation(workspace: string, adId: number, text: s
     body: new URLSearchParams({ message: text, adId: String(adId), adType, contactName: name }),
   });
   if (!response.ok) throw new Error(`Erstnachricht nicht bestätigt (HTTP ${response.status}); vor erneutem Versuch Postfach prüfen.`);
-  if (response.status === 204) return { submitted: true, adId };
+  if (response.status === 204) return { httpAccepted: true, deliveryVerified: false, adId };
   const raw = await response.text();
   let result: unknown;
   try { result = JSON.parse(raw); } catch { throw new Error('Antwort des Kontaktformulars nicht auswertbar; vor erneutem Versuch Postfach prüfen.'); }
   if (result && typeof result === 'object' && ('error' in result || ('success' in result && result.success === false))) {
     throw new Error('Kontaktformular meldet einen Fehler; vor erneutem Versuch Postfach prüfen.');
   }
-  return { submitted: true, adId, websiteResponse: result };
+  return { httpAccepted: true, deliveryVerified: false, adId, websiteResponse: result };
 }
