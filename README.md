@@ -8,6 +8,8 @@
 > `contactName` is optional when the user's profile has a contact name.
 > The ad ID and CSRF token are checked before submission. Unit tests and a
 > production build pass, but no real first message has been sent or verified.
+> An HTTP-accepted response is not treated as proof of message delivery; check
+> the inbox before considering the operation complete or retrying it.
 > Do not deploy this feature for routine use until an authorized end-to-end
 > test confirms the website's response and conversation creation.
 
